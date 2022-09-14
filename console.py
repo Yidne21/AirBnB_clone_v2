@@ -2,6 +2,7 @@
 """ Console Module """
 import cmd
 import sys
+import models
 from models.base_model import BaseModel
 from models.__init__ import storage
 from models.user import User
@@ -10,6 +11,7 @@ from models.state import State
 from models.city import City
 from models.amenity import Amenity
 from models.review import Review
+import shlex
 
 
 class HBNBCommand(cmd.Cmd):
@@ -94,7 +96,7 @@ class HBNBCommand(cmd.Cmd):
 
     def do_quit(self, command):
         """ Method to exit the HBNB console"""
-        return True
+        exit()
 
     def help_quit(self):
         """ Prints the help documentation for quit  """
@@ -113,25 +115,41 @@ class HBNBCommand(cmd.Cmd):
         """ Overrides the emptyline method of CMD """
         pass
 
+    def dic_creator(self, args):
+        """creates a dictionary from a list"""
+        dic = {}
+        for arg in args:
+            if "=" in arg:
+                vals_toa_add = arg.split('=', 1)
+                key = vals_toa_add[0]
+                value = vals_toa_add[1]
+                if value[0] == value[-1] == '"':
+                    value = value.replace('"', '').replace('_', ' ')
+                else:
+                    try:
+                        value = int(value)
+                    except:
+                        try:
+                            value = float(value)
+                        except:
+                            continue
+                dic[key] = value
+        return (dic)
+
     def do_create(self, args):
         """Creates a new instance of BaseModel """
-        try:
-            if not args:
-                raise SyntaxError()
-            params = args.split(" ")
-            obj = eval("{}()".format(params[0]))
-            for p in params[1:]:
-                arg = p.split("=")
-                arg[1] = eval(arg[1])
-                if type(arg[1]) is str:
-                    arg[1] = arg[1].replace("_", " ")
-                setattr(obj, arg[0], arg[1])
-            obj.save()
-            print("{}".format(obj.id))
-        except SyntaxError:
+        args = args.split()
+        if len(args) == 0:
             print("** class name missing **")
-        except NameError:
+            return
+        if args[0] in HBNBCommand.classes:
+            dic = self.dic_creator(args[1:])
+            instance = HBNBCommand.classes[args[0]](**dic)
+        else:
             print("** class doesn't exist **")
+            return
+        print(instance.id)
+        instance.save()
 
     def help_create(self):
         """ Help information for the create method """
