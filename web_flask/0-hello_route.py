@@ -1,5 +1,7 @@
 #!/usr/bin/pyhton3
-"""this flask script starts a flask web app"""
+"""
+This flask script starts a flask web app
+"""
 
 from flask import Flask
 app = Flask(__name__)
