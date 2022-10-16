@@ -1,5 +1,6 @@
-#!/usr/bin/Python3
-"""This module defines the engine for the MySQL database"""
+#!/usr/bin/python3
+"""Define storage engine using MySQL database
+"""
 from models.base_model import BaseModel, Base
 from models.user import User
 from models.state import State
@@ -7,68 +8,80 @@ from models.city import City
 from models.amenity import Amenity
 from models.place import Place
 from models.review import Review
-from sqlalchemy import (create_engine)
-from sqlalchemy.orm import sessionmaker, scoped_session
-import os
+from sqlalchemy import create_engine
+from sqlalchemy.orm import scoped_session
+from sqlalchemy.orm.session import sessionmaker, Session
+from os import getenv
 
-
-user = os.getenv('HBNB_MYSQL_USER')
-pwd = os.getenv('HBNB_MYSQL_PWD')
-host = os.getenv('HBNB_MYSQL_HOST')
-db = os.getenv('HBNB_MYSQL_DB')
-env = os.getenv('HBNB_ENV')
+all_classes = {'State': State, 'City': City,
+               'User': User, 'Place': Place,
+               'Review': Review, 'Amenity': Amenity}
 
 
 class DBStorage:
-    """Defining the class DBStorage"""
-
-    __classes = [State, City, User, Place, Review, Amenity]
+    """This class manages MySQL storage using SQLAlchemy"""	
     __engine = None
     __session = None
 
     def __init__(self):
-        """Contructor for the class DBStorage"""
-        self.__engine = create_engine('mysql+mysqldb://{}:{}@{}/{}'.format(
-            user, pwd, host, db), pool_pre_ping=True)
-    if env == "test":
-        Base.MetaData.drop_all()
+        """Create SQLAlchemy engine"""
+        # create engine
+        self.__engine = create_engine('mysql+mysqldb://{}:{}@{}:3306/{}'.
+                                      format(getenv('HBNB_MYSQL_USER'),
+                                             getenv('HBNB_MYSQL_PWD'),
+                                             getenv('HBNB_MYSQL_HOST'),
+                                             getenv('HBNB_MYSQL_DB')),
+                                      pool_pre_ping=True)
+        # drop tables if test environment
+        if getenv('HBNB_ENV') == 'test':
+                Base.metadata.drop_all(self.__engine)
 
     def all(self, cls=None):
-        """Method to return a dictionary of objects"""
-        my_dict = {}
-        if cls in self.__classes:
-            result = DBStorage.__session.query(cls)
-            for row in result:
-                key = "{}.{}".format(row.__class__.__name__, row.id)
-                my_dict[key] = row
-        elif cls is None:
-            for cl in self.__classes:
-                result = DBStorage.__session.query(cl)
-                for row in result:
-                    key = "{}.{}".format(row.__class__.__name__, row.id)
-                    my_dict[key] = row
-        return my_dict
+        """Query and return all objects by class/generally"""
+        obj_dict = {}
+
+        if cls:
+            for row in self.__session.query(cls).all():
+                # populate dict with objects from storage
+                obj_dict.update({'{}.{}'.
+                                format(type(cls).__name__, row.id,): row})
+        else:
+            for key, val in all_classes.items():
+                for row in self.__session.query(val):
+                    obj_dict.update({'{}.{}'.
+                                    format(type(row).__name__, row.id,): row})
+        return obj_dict
 
     def new(self, obj):
-        """Method to add a new object to the current database"""
-        DBStorage.__session.add(obj)
+        """Add object to current database session"""
+        self.__session.add(obj)
 
     def save(self):
-        """Method to commit all changes to the current database"""
-        DBStorage.__session.commit()
+        """Commit current database session
+        """
+        self.__session.commit()
 
     def delete(self, obj=None):
-        """Method to delete a new object to the current database"""
-        DBStorage.__session.delete(obj)
+        """Delete obj from database session"""
+        if obj:
+            # determine class from obj
+            cls_name = all_classes[type(obj).__name__]
+
+            # query class table and delete
+            self.__session.query(cls_name).\
+                filter(cls_name.id == obj.id).delete()
 
     def reload(self):
-        """Method to create the current database session"""
+        """Create database session"""
+        # create session from current engine
         Base.metadata.create_all(self.__engine)
-        session_factory = sessionmaker(bind=self.__engine,
-                                       expire_on_commit=False)
-        Session = scoped_session(session_factory)
-        DBStorage.__session = Session()
+        # create db tables
+        session = sessionmaker(bind=self.__engine,
+                               expire_on_commit=False)
+        # previousy:
+        # Session = scoped_session(session)
+        self.__session = scoped_session(session)
 
     def close(self):
-        """public methodto to call remove method"""
-        DBStorage.__session.close()
+        """Close scoped session"""
+        self.__session.remove()
